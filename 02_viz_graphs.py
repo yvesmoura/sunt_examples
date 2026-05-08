@@ -101,52 +101,72 @@ print(f"  Top-{TOP_N} subgraph: {G_top.number_of_nodes()} nodes, {G_top.number_o
 # Layout: prefer geographic coordinates; fall back to spring layout
 # ---------------------------------------------------------------------------
 def get_pos(graph: nx.DiGraph) -> dict:
-    pos = {}
+    geo_pos = {}
     for n, data in graph.nodes(data=True):
-        if data.get("lon") and not np.isnan(data["lon"]):
-            pos[n] = (data["lon"], data["lat"])
-    if len(pos) < 2:
-        pos = nx.spring_layout(graph, seed=42, k=2.0)
-    return pos
+        lat = data.get("lat")
+        lon = data.get("lon")
+        if lat and lon and not np.isnan(lat) and not np.isnan(lon):
+            geo_pos[n] = (lon, lat)
+    # Use geographic layout only when every node is covered; mixing coordinate
+    # systems (degrees vs. spring's [-1,1]) clusters the unmatched nodes.
+    if len(geo_pos) == len(graph):
+        return geo_pos
+    return nx.spring_layout(graph, seed=42, k=2.0)
 
 
-pos = get_pos(G_top)
-# Fill missing positions
-missing = [n for n in G_top.nodes if n not in pos]
-if missing:
-    sub_pos = nx.spring_layout(G_top.subgraph(missing), seed=42)
-    pos.update(sub_pos)
+pos = get_pos(G_norm)
 
 # ---------------------------------------------------------------------------
-# Figure A – Plain graph, top 20 stops
+# Figure A – Full graph, top 20 stops highlighted
 # ---------------------------------------------------------------------------
-node_sizes  = [G_top.nodes[n].get("mean_boardings", 1) for n in G_top.nodes]
-max_size    = max(node_sizes) or 1
-node_sizes  = [300 + 2000 * (s / max_size) for s in node_sizes]
+top_set = set(top_stops)
 
-edge_weights = [G_top[u][v].get("weight", 1) for u, v in G_top.edges]
+# Annotate all nodes with mean boardings (0 for non-top stops)
+for node in G_norm.nodes:
+    G_norm.nodes[node]["mean_boardings"] = float(mean_occ.get(node, 0))
+
+# Separate node lists for layered drawing
+other_nodes = [n for n in G_norm.nodes if n not in top_set]
+top_nodes   = [n for n in G_norm.nodes if n in top_set]
+
+# Top-20 node sizes scaled by boardings
+top_boardings = [G_norm.nodes[n]["mean_boardings"] for n in top_nodes]
+max_b = max(top_boardings) or 1
+top_sizes = [400 + 2000 * (b / max_b) for b in top_boardings]
+
+# Edge widths from full graph
+edge_weights = [G_norm[u][v].get("weight", 1) for u, v in G_norm.edges]
 max_w        = max(edge_weights, default=1) or 1
-edge_widths  = [0.5 + 4.0 * (w / max_w) for w in edge_weights]
+edge_widths  = [0.3 + 2.5 * (w / max_w) for w in edge_weights]
 
-norm  = mcolors.Normalize(vmin=min(node_sizes), vmax=max(node_sizes))
-cmap  = cm.YlOrRd
-colors = [cmap(norm(s)) for s in node_sizes]
+cmap = cm.YlOrRd
+norm = mcolors.Normalize(vmin=0, vmax=max_b)
+top_colors = [cmap(norm(b)) for b in top_boardings]
 
-fig, ax = plt.subplots(figsize=(10, 8))
-nx.draw_networkx_nodes(G_top, pos, ax=ax, node_size=node_sizes,
-                       node_color=colors, alpha=0.9)
-nx.draw_networkx_edges(G_top, pos, ax=ax, width=edge_widths,
-                       edge_color="steelblue", alpha=0.6,
-                       arrows=True, arrowsize=15,
-                       connectionstyle="arc3,rad=0.1")
-nx.draw_networkx_labels(G_top, pos, ax=ax,
-                        labels={n: str(n) for n in G_top.nodes},
-                        font_size=7, font_color="black")
+fig, ax = plt.subplots(figsize=(12, 9))
+
+# Background: full network edges (thin, low opacity)
+nx.draw_networkx_edges(G_norm, pos, ax=ax, width=edge_widths,
+                       edge_color="steelblue", alpha=0.25,
+                       arrows=False)
+
+# Background: non-top nodes (small, grey)
+nx.draw_networkx_nodes(G_norm, pos, ax=ax, nodelist=other_nodes,
+                       node_size=30, node_color="lightgrey", alpha=0.5)
+
+# Foreground: top-20 nodes (large, colored)
+nx.draw_networkx_nodes(G_norm, pos, ax=ax, nodelist=top_nodes,
+                       node_size=top_sizes, node_color=top_colors, alpha=0.95)
+
+# Labels only for top-20
+nx.draw_networkx_labels(G_norm, pos, ax=ax,
+                        labels={n: str(n) for n in top_nodes},
+                        font_size=6, font_color="black")
 
 sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
 sm.set_array([])
-plt.colorbar(sm, ax=ax, label="Node size ~ mean boardings/h")
-ax.set_title(f"Top {TOP_N} bus stops by mean occupancy (Salvador, BA)", fontsize=13)
+plt.colorbar(sm, ax=ax, label="Mean boardings/h (top 20)")
+ax.set_title(f"Bus network – top {TOP_N} stops by occupancy highlighted (Salvador, BA)", fontsize=13)
 ax.axis("off")
 fig.tight_layout()
 fig.savefig(OUTPUT_DIR / "A_top20_graph.png", dpi=150)
