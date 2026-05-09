@@ -14,6 +14,7 @@ pmdarima>=2.0            # auto_arima for SARIMA parameter search
 # Deep Learning
 torch>=2.1
 torch-geometric>=2.4     # Graph Neural Networks (PyG)
+chronos-forecasting      # Amazon Chronos foundation model (zero-shot forecasting, Python 3.12+)
 
 # Visualization
 matplotlib>=3.7
