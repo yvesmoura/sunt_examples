@@ -28,41 +28,40 @@ from utils import load_timeseries
 OUTPUT_DIR = Path("outputs/sarima")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Hourly SARIMA with M=24 is too heavy (>8 min per model fit, OOM).
-# Use daily aggregation + weekly seasonality M=7: tractable and meaningful.
-FREQ         = "D"        # daily boardings per stop
-SEASON_M     = 7          # weekly seasonality
+# Hourly data with daily seasonality M=24. Weekly M=168 is intractable for SARIMA.
+FREQ         = "1h"       # hourly boardings per stop
+SEASON_M     = 24         # daily seasonality
 TEST_DAYS    = 14         # 2 weeks test set
 STOP_ID      = None       # None = busiest stop
-START_DATE   = "2025-01-13"
-PERIODS      = 90         # calendar days to load (enough for ~6 seasonal cycles of M=7)
+START_DATE   = "2024-04-01"
+PERIODS      = 90         # calendar days to load
 
 # ---------------------------------------------------------------------------
 # Load data
 # ---------------------------------------------------------------------------
 print("Loading data ...")
-ts_all = load_timeseries(start_date=START_DATE, n_days=PERIODS, freq=FREQ, top_n=50)
+ts_all = load_timeseries(start_date=START_DATE, n_days=PERIODS, freq=FREQ, top_n=20)
 
 if STOP_ID is None:
     STOP_ID = ts_all.sum().idxmax()
 print(f"Selected stop: {STOP_ID}")
 
 series = ts_all[STOP_ID].asfreq(FREQ).fillna(0).astype(float)
-print(f"Series length: {len(series)} days  ({series.index[0].date()} → {series.index[-1].date()})")
+print(f"Series length: {len(series)} hours  ({series.index[0].date()} → {series.index[-1].date()})")
 
 # ---------------------------------------------------------------------------
 # Train / test split
 # ---------------------------------------------------------------------------
-test_steps = TEST_DAYS
+test_steps = TEST_DAYS * 24  # convert days to hourly steps
 min_train  = SEASON_M * 6   # at least 6 seasonal cycles
 if len(series) < test_steps + min_train:
     raise ValueError(
-        f"Not enough data: {len(series)} days but need "
+        f"Not enough data: {len(series)} hours but need "
         f"{test_steps + min_train}. Increase PERIODS (currently {PERIODS})."
     )
 train = series.iloc[:-test_steps]
 test  = series.iloc[-test_steps:]
-print(f"Train: {len(train)} days  |  Test: {len(test)} days")
+print(f"Train: {len(train)} hours  |  Test: {len(test)} hours ({TEST_DAYS} days)")
 
 # ---------------------------------------------------------------------------
 # Stationarity tests
@@ -84,9 +83,9 @@ print(f"KPSS test – stat={kpss_stat:.4f}, p={kpss_p:.4f}  "
 # ---------------------------------------------------------------------------
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
-max_lags = min(28, len(train) // 2 - 1)
+max_lags = min(72, len(train) // 2 - 1)  # show 3 days of hourly lags
 fig, axes = plt.subplots(2, 1, figsize=(12, 6))
-plot_acf( train, lags=max_lags, ax=axes[0], title=f"ACF – stop {STOP_ID} (daily boardings)")
+plot_acf( train, lags=max_lags, ax=axes[0], title=f"ACF – stop {STOP_ID} (hourly boardings)")
 plot_pacf(train, lags=max_lags, ax=axes[1], title="PACF", method="ywm")
 fig.tight_layout()
 fig.savefig(OUTPUT_DIR / "acf_pacf.png", dpi=150)
@@ -102,7 +101,7 @@ try:
     auto = pm.auto_arima(
         train,
         seasonal=True,
-        m=SEASON_M,          # M=7: weekly — fast to fit on daily data
+        m=SEASON_M,          # M=24: daily seasonality on hourly data
         stepwise=True,
         suppress_warnings=True,
         error_action="ignore",
@@ -117,7 +116,7 @@ try:
 
 except ImportError:
     # Fallback: reasonable defaults for hourly urban transit
-    print("\npmdarima not installed – using default SARIMA(1,0,1)(1,1,1)[24]")
+    print(f"\npmdarima not installed – using default SARIMA(1,0,1)(1,1,1)[{SEASON_M}]")
     order          = (1, 0, 1)
     seasonal_order = (1, 1, 1, SEASON_M)
 
@@ -169,8 +168,8 @@ print(f"{'='*40}")
 # ---------------------------------------------------------------------------
 fig, ax = plt.subplots(figsize=(14, 5))
 
-# Show last 4 weeks of training for context
-train_tail = train.iloc[-TEST_DAYS * 2 :]
+# Show last 2 weeks of training for context
+train_tail = train.iloc[-TEST_DAYS * 2 * 24 :]
 ax.plot(train_tail.index, train_tail.values, color="steelblue", lw=0.9, label="Train (tail)")
 ax.plot(test.index, test.values, color="black", lw=1.2, label="Actual")
 ax.plot(fc_mean.index, fc_mean.values, color="crimson", lw=1.5, linestyle="--", label="SARIMA forecast")

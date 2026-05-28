@@ -45,7 +45,7 @@ np.random.seed(SEED)
 # Data  (identical to LSTM script)
 # ---------------------------------------------------------------------------
 print("Loading data ...")
-ts = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N)
+ts = load_timeseries(start_date="2024-04-01", n_days=90, freq=FREQ, top_n=TOP_N)
 splits   = prepare_sequences(ts, input_len=INPUT_LEN, horizon=HORIZON)
 N        = splits["n_features"]
 
