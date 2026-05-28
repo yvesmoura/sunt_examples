@@ -34,7 +34,7 @@ FREQ         = "D"        # daily boardings per stop
 SEASON_M     = 7          # weekly seasonality
 TEST_DAYS    = 14         # 2 weeks test set
 STOP_ID      = None       # None = busiest stop
-START_DATE   = "2024-09-30"
+START_DATE   = "2025-01-13"
 PERIODS      = 90         # calendar days to load (enough for ~6 seasonal cycles of M=7)
 
 # ---------------------------------------------------------------------------
