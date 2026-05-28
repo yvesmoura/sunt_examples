@@ -45,7 +45,7 @@ np.random.seed(SEED)
 # Data  (identical to LSTM script)
 # ---------------------------------------------------------------------------
 print("Loading data ...")
-ts = load_timeseries(start_date="2024-04-01", n_days=90, freq=FREQ, top_n=TOP_N)
+ts = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N)
 splits   = prepare_sequences(ts, input_len=INPUT_LEN, horizon=HORIZON)
 N        = splits["n_features"]
 
@@ -196,15 +196,17 @@ ax.set_title("GRU – training curves"); ax.legend()
 fig.tight_layout(); fig.savefig(OUTPUT_DIR / "training_curves.png", dpi=150)
 plt.close(fig)
 
-stop_idx = 0
-n_show   = 72
-y_true_s = true_flat[:n_show * HORIZON, stop_idx]
-y_pred_s = pred_flat[:n_show * HORIZON, stop_idx]
-
-fig, ax = plt.subplots(figsize=(14, 4))
-ax.plot(y_true_s, label="Actual", color="black", lw=1)
-ax.plot(y_pred_s, label="GRU forecast", color="darkorange", lw=1, linestyle="--")
+stop_idx  = 0
 stop_name = splits["columns"][stop_idx]
+series    = ts[stop_name]
+train_tail = series.iloc[-(7 * 24 + HORIZON):-HORIZON]
+actual     = series.iloc[-HORIZON:]
+last_pred  = pred_flat[-HORIZON:, stop_idx]
+
+fig, ax = plt.subplots(figsize=(14, 5))
+ax.plot(train_tail.index, train_tail.values, color="steelblue", lw=0.9, label="Train (tail)")
+ax.plot(actual.index, actual.values, color="black", lw=1.2, label="Actual")
+ax.plot(actual.index, last_pred, color="darkorange", lw=1.5, linestyle="--", label="GRU forecast")
 ax.set_title(f"Bidirectional GRU | Stop {stop_name} | "
              f"MAE={mae:.1f}  RMSE={rmse:.1f}  MAPE={mape:.1f}%", fontsize=11)
 ax.set_ylabel("Boardings / hour"); ax.legend(); ax.grid(alpha=0.3)

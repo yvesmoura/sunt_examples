@@ -31,10 +31,10 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # Hourly data with daily seasonality M=24. Weekly M=168 is intractable for SARIMA.
 FREQ         = "1h"       # hourly boardings per stop
 SEASON_M     = 24         # daily seasonality
-TEST_DAYS    = 14         # 2 weeks test set
+HORIZON      = 24         # test horizon — 1 day ahead (same as LSTM/GRU/Transformer/Chronos)
 STOP_ID      = None       # None = busiest stop
 START_DATE   = "2024-04-01"
-PERIODS      = 90         # calendar days to load
+PERIODS      = 60         # calendar days to load (2024-04-01 → 2024-05-30)
 
 # ---------------------------------------------------------------------------
 # Load data
@@ -52,8 +52,8 @@ print(f"Series length: {len(series)} hours  ({series.index[0].date()} → {serie
 # ---------------------------------------------------------------------------
 # Train / test split
 # ---------------------------------------------------------------------------
-test_steps = TEST_DAYS * 24  # convert days to hourly steps
-min_train  = SEASON_M * 6   # at least 6 seasonal cycles
+test_steps = HORIZON        # 24 h — same test window as all other models
+min_train  = SEASON_M * 6  # at least 6 seasonal cycles
 if len(series) < test_steps + min_train:
     raise ValueError(
         f"Not enough data: {len(series)} hours but need "
@@ -61,7 +61,7 @@ if len(series) < test_steps + min_train:
     )
 train = series.iloc[:-test_steps]
 test  = series.iloc[-test_steps:]
-print(f"Train: {len(train)} hours  |  Test: {len(test)} hours ({TEST_DAYS} days)")
+print(f"Train: {len(train)} hours  |  Test: {len(test)} hours")
 
 # ---------------------------------------------------------------------------
 # Stationarity tests
@@ -168,8 +168,8 @@ print(f"{'='*40}")
 # ---------------------------------------------------------------------------
 fig, ax = plt.subplots(figsize=(14, 5))
 
-# Show last 2 weeks of training for context
-train_tail = train.iloc[-TEST_DAYS * 2 * 24 :]
+# Show last 7 days of training for context
+train_tail = train.iloc[-HORIZON * 7 :]
 ax.plot(train_tail.index, train_tail.values, color="steelblue", lw=0.9, label="Train (tail)")
 ax.plot(test.index, test.values, color="black", lw=1.2, label="Actual")
 ax.plot(fc_mean.index, fc_mean.values, color="crimson", lw=1.5, linestyle="--", label="SARIMA forecast")

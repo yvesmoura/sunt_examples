@@ -51,7 +51,7 @@ np.random.seed(SEED)
 # Data
 # ---------------------------------------------------------------------------
 print("Loading data ...")
-ts = load_timeseries(start_date="2024-04-01", n_days=90, freq=FREQ, top_n=TOP_N)
+ts = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N)
 splits   = prepare_sequences(ts, input_len=INPUT_LEN, horizon=HORIZON)
 N        = splits["n_features"]
 
@@ -220,20 +220,28 @@ print(f"{'='*40}")
 # ---------------------------------------------------------------------------
 # Plots
 # ---------------------------------------------------------------------------
-fig, axes = plt.subplots(1, 2, figsize=(14, 4))
-axes[0].plot(history["train_loss"], label="Train"); axes[0].plot(history["val_loss"], label="Val")
-axes[0].set_title("Transformer – loss curves"); axes[0].set_xlabel("Epoch"); axes[0].legend()
+fig, ax = plt.subplots(figsize=(9, 4))
+ax.plot(history["train_loss"], label="Train (Huber)")
+ax.plot(history["val_loss"],   label="Val (Huber)")
+ax.set_xlabel("Epoch"); ax.set_ylabel("Huber loss")
+ax.set_title("Transformer – training curves"); ax.legend()
+fig.tight_layout(); fig.savefig(OUTPUT_DIR / "training_curves.png", dpi=150)
+plt.close(fig)
 
-stop_idx = 0
-y_true_s = true_flat[:72 * HORIZON, stop_idx]
-y_pred_s = pred_flat[:72 * HORIZON, stop_idx]
-axes[1].plot(y_true_s, label="Actual", color="black", lw=1)
-axes[1].plot(y_pred_s, label="Transformer", color="mediumorchid", lw=1, ls="--")
+stop_idx  = 0
 stop_name = splits["columns"][stop_idx]
-axes[1].set_title(f"Stop {stop_name} | MAE={mae:.1f} RMSE={rmse:.1f}")
-axes[1].legend(); axes[1].grid(alpha=0.3)
+series    = ts[stop_name]
+train_tail = series.iloc[-(7 * 24 + HORIZON):-HORIZON]
+actual     = series.iloc[-HORIZON:]
+last_pred  = pred_flat[-HORIZON:, stop_idx]
 
-fig.suptitle("Temporal Transformer Forecast – SUNT Dataset", fontsize=13)
+fig, ax = plt.subplots(figsize=(14, 5))
+ax.plot(train_tail.index, train_tail.values, color="steelblue", lw=0.9, label="Train (tail)")
+ax.plot(actual.index, actual.values, color="black", lw=1.2, label="Actual")
+ax.plot(actual.index, last_pred, color="mediumorchid", lw=1.5, linestyle="--", label="Transformer forecast")
+ax.set_title(f"Transformer | Stop {stop_name} | MAE={mae:.1f}  RMSE={rmse:.1f}  MAPE={mape:.1f}%",
+             fontsize=11)
+ax.set_ylabel("Boardings / hour"); ax.legend(); ax.grid(alpha=0.3)
 fig.tight_layout(); fig.savefig(OUTPUT_DIR / "transformer_forecast.png", dpi=150)
 plt.close(fig)
 
