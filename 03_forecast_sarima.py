@@ -34,7 +34,7 @@ FREQ         = "D"        # daily boardings per stop
 SEASON_M     = 7          # weekly seasonality
 TEST_DAYS    = 14         # 2 weeks test set
 STOP_ID      = None       # None = busiest stop
-START_DATE   = "2024-04-01"
+START_DATE   = "2024-09-30"
 PERIODS      = 90         # calendar days to load (enough for ~6 seasonal cycles of M=7)
 
 # ---------------------------------------------------------------------------
@@ -84,9 +84,10 @@ print(f"KPSS test – stat={kpss_stat:.4f}, p={kpss_p:.4f}  "
 # ---------------------------------------------------------------------------
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
+max_lags = min(28, len(train) // 2 - 1)
 fig, axes = plt.subplots(2, 1, figsize=(12, 6))
-plot_acf( train, lags=72, ax=axes[0], title=f"ACF – stop {STOP_ID} (hourly boardings)")
-plot_pacf(train, lags=72, ax=axes[1], title="PACF", method="ywm")
+plot_acf( train, lags=max_lags, ax=axes[0], title=f"ACF – stop {STOP_ID} (daily boardings)")
+plot_pacf(train, lags=max_lags, ax=axes[1], title="PACF", method="ywm")
 fig.tight_layout()
 fig.savefig(OUTPUT_DIR / "acf_pacf.png", dpi=150)
 plt.close(fig)
