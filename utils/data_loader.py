@@ -25,7 +25,9 @@ Paper: https://www.nature.com/articles/s41597-025-05674-6
 
 from __future__ import annotations
 
+import io
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 import networkx as nx
@@ -33,6 +35,7 @@ import numpy as np
 import pandas as pd
 import requests
 from suntdataset import SUNTLoader, SUNTVisualizer
+from tqdm import tqdm
 
 _loader = SUNTLoader()
 
@@ -49,7 +52,13 @@ _HF_FOLDER = {
     "alighting":"Alighting",
 }
 
-_HF_API = "https://huggingface.co/api/datasets/labiaufba/PublicTransportationSunt/tree/main/{folder}"
+_HF_API     = "https://huggingface.co/api/datasets/labiaufba/PublicTransportationSunt/tree/main/{folder}"
+_HF_RESOLVE = "https://huggingface.co/datasets/labiaufba/PublicTransportationSunt/resolve/main/{folder}/{fname}"
+
+# Local cache directory for HuggingFace downloads.
+# Override before importing if a different path is needed:
+#   import utils.data_loader as dl; dl.CACHE_DIR = Path("/tmp/sunt")
+CACHE_DIR: Path = Path.home() / ".cache" / "sunt_dataset"
 
 
 @lru_cache(maxsize=8)
@@ -76,11 +85,29 @@ def get_available_dates(dataset_type: str) -> set[str]:
         return set()
 
 
+def _load_one_hgface(dataset_type: str, date_str: str) -> pd.DataFrame:
+    """Return a single day's parquet, reading from local cache or downloading and caching it."""
+    folder = _HF_FOLDER.get(dataset_type)
+    if folder is None:
+        raise ValueError(f"HuggingFace loading not supported for dataset_type='{dataset_type}'")
+    fname = f"{dataset_type}-{date_str}.parquet"
+    cache_path = CACHE_DIR / folder / fname
+    if cache_path.exists():
+        return pd.read_parquet(cache_path)
+    url = _HF_RESOLVE.format(folder=folder, fname=fname)
+    r = requests.get(url, timeout=60)
+    r.raise_for_status()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(r.content)
+    return pd.read_parquet(cache_path)
+
+
 def _load_available(
     dataset_type: str,
     start_date: str,
     n_days: int,
     day_type: str,
+    source: str = "pip",
 ) -> pd.DataFrame:
     """
     Load only the dates that actually exist in the HuggingFace repo,
@@ -111,14 +138,17 @@ def _load_available(
         )
 
     frames = []
-    for dt in all_dates:
+    for dt in tqdm(all_dates, desc=f"Loading {dataset_type} [{source}]", unit="day"):
         date_str = dt.strftime("%Y-%m-%d")
         try:
-            df = _loader.load_batch(dataset_type, start_date=date_str, periods=1)
+            if source == "hgface":
+                df = _load_one_hgface(dataset_type, date_str)
+            else:
+                df = _loader.load_batch(dataset_type, start_date=date_str, periods=1)
             if not df.empty:
                 frames.append(df)
         except Exception as e:
-            print(f"  Warning: skipped {date_str} ({e})")
+            tqdm.write(f"  Warning: skipped {date_str} ({e})")
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -135,6 +165,7 @@ def load_boarding(
     start_date: str = "2024-04-01",
     n_days: int = 30,
     day_type: str = "all",
+    source: str = "pip",
 ) -> pd.DataFrame:
     """
     Load the processed boarding table, skipping dates not in the dataset.
@@ -147,8 +178,9 @@ def load_boarding(
     start_date : first date to load (YYYY-MM-DD)
     n_days     : number of calendar days to span
     day_type   : 'all' | 'workdays' | 'saturdays' | 'sundays'
+    source     : 'pip' (suntdataset package) | 'hgface' (HuggingFace direct)
     """
-    df = _load_available("boarding", start_date, n_days, day_type)
+    df = _load_available("boarding", start_date, n_days, day_type, source=source)
     if "register_time" in df.columns:
         df["register_time"] = pd.to_datetime(df["register_time"])
     return df
@@ -158,14 +190,19 @@ def load_alighting(
     start_date: str = "2024-04-01",
     n_days: int = 30,
     day_type: str = "all",
+    source: str = "pip",
 ) -> pd.DataFrame:
     """
     Load the processed alighting table, skipping dates not in the dataset.
 
     Columns: tripuserid, stop_time_ali, stop_id_ali,
              walk_dis, trip_dis, target_alighting, date_ref
+
+    Parameters
+    ----------
+    source : 'pip' (suntdataset package) | 'hgface' (HuggingFace direct)
     """
-    df = _load_available("alighting", start_date, n_days, day_type)
+    df = _load_available("alighting", start_date, n_days, day_type, source=source)
     if "stop_time_ali" in df.columns:
         df["stop_time_ali"] = pd.to_datetime(df["stop_time_ali"])
     return df
@@ -175,6 +212,7 @@ def load_od(
     start_date: str = "2024-04-01",
     n_days: int = 7,
     day_type: str = "all",
+    source: str = "pip",
 ) -> pd.DataFrame:
     """
     Load the Origin-Destination table, skipping dates not in the dataset.
@@ -183,8 +221,12 @@ def load_od(
              n_alighting, loading, balance, route_short_name,
              direction_id, vehicle, date_ref
     (n-boardings / n-alighting are renamed to snake_case on load)
+
+    Parameters
+    ----------
+    source : 'pip' (suntdataset package) | 'hgface' (HuggingFace direct)
     """
-    df = _load_available("od", start_date, n_days, day_type)
+    df = _load_available("od", start_date, n_days, day_type, source=source)
     df = _rename_dash_cols(df)
     if "stop_time" in df.columns:
         df["stop_time"] = pd.to_datetime(df["stop_time"])
@@ -209,6 +251,7 @@ def load_timeseries(
     freq: str = "1h",
     top_n: int = 50,
     day_type: str = "all",
+    source: str = "pip",
 ) -> pd.DataFrame:
     """
     Memory-efficient alternative to load_boarding() + create_stop_timeseries().
@@ -216,6 +259,10 @@ def load_timeseries(
     Loads boarding data one day at a time, aggregates immediately to
     (time × stop) counts, then discards the raw rows. Peak memory is
     O(1 day of raw data) instead of O(n_days of raw data).
+
+    Parameters
+    ----------
+    source : 'pip' (suntdataset package) | 'hgface' (HuggingFace direct)
 
     Returns
     -------
@@ -239,10 +286,13 @@ def load_timeseries(
         raise ValueError(f"No available boarding data found starting {start_date}.")
 
     daily_aggs = []
-    for dt in all_dates:
+    for dt in tqdm(all_dates, desc=f"Loading timeseries [{source}]", unit="day"):
         date_str = dt.strftime("%Y-%m-%d")
         try:
-            df = _loader.load_batch("boarding", start_date=date_str, periods=1)
+            if source == "hgface":
+                df = _load_one_hgface("boarding", date_str)
+            else:
+                df = _loader.load_batch("boarding", start_date=date_str, periods=1)
             if df.empty:
                 continue
             df["register_time"] = pd.to_datetime(df["register_time"])
@@ -267,7 +317,7 @@ def load_timeseries(
             daily_aggs.append(agg)
             del df  # free raw data immediately
         except Exception as e:
-            print(f"  Warning: skipped {date_str} ({e})")
+            tqdm.write(f"  Warning: skipped {date_str} ({e})")
 
     if not daily_aggs:
         raise RuntimeError("No data could be loaded.")

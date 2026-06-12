@@ -44,7 +44,8 @@ np.random.seed(SEED)
 # Data
 # ---------------------------------------------------------------------------
 print("Loading data ...")
-ts = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N)
+ts = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N, source="hgface")
+#ts = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N, source="pip")
 print(f"  Time series shape: {ts.shape}  (steps × stops)")
 
 splits = prepare_sequences(ts, input_len=INPUT_LEN, horizon=HORIZON)
