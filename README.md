@@ -1,47 +1,47 @@
 # SUNT Examples
 
-Exemplos de visualização e previsão de demanda no transporte público usando o dataset **SUNT** (Salvador Urban Network of Transportation).
+Visualization and demand forecasting examples for public transportation using the **SUNT** dataset (Salvador Urban Network of Transportation).
 
-O dataset integra dados de AFC (bilhetagem), AVL (GPS dos veículos), LTI (informações de viagem) e GTFS dos ônibus de Salvador/BA.
+The dataset integrates AFC (fare collection), AVL (vehicle GPS), LTI (trip information), and GTFS data from Salvador/BA buses.
 
-**Paper do dataset:** Ferreira et al., *"SUNT: A multimodal urban public transportation dataset"*, Scientific Data, Nature (2025).  
+**Dataset paper:** Ferreira et al., *"SUNT: A multimodal urban public transportation dataset"*, Scientific Data, Nature (2025).  
 **DOI:** https://www.nature.com/articles/s41597-025-05674-6
 
 ---
 
-## Estrutura dos scripts
+## Script structure
 
-Cada script é autocontido e grava seus resultados em `outputs/<tema>/`.
+Each script is self-contained and writes its results to `outputs/<topic>/`.
 
-| Script | Modelo / Tema |
+| Script | Model / Topic |
 |---|---|
-| `01_viz_timeseries.py` | Visualização de séries temporais (perfis diários, heatmap, sazonalidade, média móvel) |
-| `02_viz_graphs.py` | Visualização do grafo da rede (top-20 paradas, centralidade, mapa interativo Folium) |
-| `03_forecast_sarima.py` | SARIMA univariado com seleção automática de ordem via `pmdarima.auto_arima` |
-| `04_forecast_lstm.py` | LSTM empilhado multivariado (todas as N paradas simultaneamente) |
-| `05_forecast_gru.py` | GRU — mesma arquitetura do LSTM com células GRU |
-| `06_forecast_transformer.py` | Transformer encoder-only com positional encoding |
-| `07_forecast_chronos.py` | Chronos (Amazon) — modelo fundação zero-shot, sem treinamento |
-| `08_forecast_gcn.py` | Pure GCN espacial — linha de base para os modelos de grafo |
-| `09_forecast_gnn.py` | T-GCN — GCN espacial + GRU temporal (Zhao et al., 2020) |
-| `10_forecast_gat.py` | T-GAT — GAT espacial + GRU temporal (Veličković et al., 2018) |
+| `01_viz_timeseries.py` | Time series visualization (daily profiles, heatmap, seasonality, moving average) |
+| `02_viz_graphs.py` | Network graph visualization (top-20 stops, centrality, interactive Folium map) |
+| `03_forecast_sarima.py` | Univariate SARIMA with automatic order selection via `pmdarima.auto_arima` |
+| `04_forecast_lstm.py` | Multivariate stacked LSTM (all N stops simultaneously) |
+| `05_forecast_gru.py` | GRU — same architecture as LSTM with GRU cells |
+| `06_forecast_transformer.py` | Encoder-only Transformer with positional encoding |
+| `07_forecast_chronos.py` | Chronos (Amazon) — zero-shot foundation model, no training required |
+| `08_forecast_gcn.py` | Pure spatial GCN — baseline for graph models |
+| `09_forecast_gnn.py` | T-GCN — spatial GCN + temporal GRU (Zhao et al., 2020) |
+| `10_forecast_gat.py` | T-GAT — spatial GAT + temporal GRU (Veličković et al., 2018) |
 
 ---
 
-## Instalação
+## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**Notas:**
+**Notes:**
 
-- `torch-geometric` requer instalação separada compatível com a versão do PyTorch instalada — veja [pytorch-geometric.readthedocs.io](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html). Os scripts 08, 09 e 10 fazem fallback para uma implementação customizada caso PyG não esteja disponível.
-- `chronos-forecasting` requer Python 3.12+.
+- `torch-geometric` requires a separate installation compatible with the installed PyTorch version — see [pytorch-geometric.readthedocs.io](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html). Scripts 08, 09, and 10 fall back to a custom implementation if PyG is not available.
+- `chronos-forecasting` requires Python 3.12+.
 
 ---
 
-## Como executar
+## How to run
 
 ```bash
 python 01_viz_timeseries.py
@@ -50,71 +50,71 @@ python 10_forecast_gat.py
 # etc.
 ```
 
-Os scripts baixam e cacheiam automaticamente os dados em `~/.cache/sunt_dataset/`. Na primeira execução espere o download dos parquets do HuggingFace.
+Scripts automatically download and cache data to `~/.cache/sunt_dataset/`. On the first run, wait for the Parquet files to download from HuggingFace.
 
 ---
 
-## Dados (`utils/data_loader.py`)
+## Data (`utils/data_loader.py`)
 
-O módulo `utils` centraliza o acesso ao dataset via o pacote `suntdataset` (PyPI) ou diretamente pelo HuggingFace (`source="hgface"`).
+The `utils` module centralizes dataset access via the `suntdataset` package (PyPI) or directly from HuggingFace (`source="hgface"`).
 
-| Função | Retorno |
+| Function | Returns |
 |---|---|
-| `load_timeseries(freq, top_n, ...)` | Matriz `(T × N)` de embarques por parada — entrada principal dos modelos deep learning |
-| `load_boarding(...)` | Eventos de embarque brutos |
-| `load_alighting(...)` | Eventos de desembarque estimados |
-| `load_od(...)` | Tabela Origem-Destino (loading por parada/viagem) |
-| `load_gtfs(table)` | Tabelas estáticas GTFS: `stops`, `trips`, `routes`, `shapes`, `agency` |
-| `prepare_sequences(ts, input_len, horizon)` | Janela deslizante → `{X_train, y_val, X_test, scaler, …}` |
-| `build_graph_from_od(od)` | `nx.DiGraph` de fluxos entre paradas consecutivas |
+| `load_timeseries(freq, top_n, ...)` | `(T × N)` matrix of boardings per stop — primary input for deep learning models |
+| `load_boarding(...)` | Raw boarding events |
+| `load_alighting(...)` | Estimated alighting events |
+| `load_od(...)` | Origin-Destination table (loading per stop/trip) |
+| `load_gtfs(table)` | Static GTFS tables: `stops`, `trips`, `routes`, `shapes`, `agency` |
+| `prepare_sequences(ts, input_len, horizon)` | Sliding window → `{X_train, y_val, X_test, scaler, …}` |
+| `build_graph_from_od(od)` | `nx.DiGraph` of flows between consecutive stops |
 
-**Tipos de dia disponíveis:** `"all"`, `"workdays"`, `"saturdays"`, `"sundays"`
+**Available day types:** `"all"`, `"workdays"`, `"saturdays"`, `"sundays"`
 
 ---
 
-## Modelos de grafo (08–10)
+## Graph models (08–10)
 
-Todos os três constroem o grafo da rede a partir dos dados OD:
-- **Nós** = paradas de ônibus (top N por volume de embarques)
-- **Arestas** = paradas consecutivas na mesma viagem, ponderadas pelo total de passageiros
+All three build the network graph from OD data:
+- **Nodes** = bus stops (top N by boarding volume)
+- **Edges** = consecutive stops on the same trip, weighted by total passengers
 
-| Modelo | Componente espacial | Componente temporal |
+| Model | Spatial component | Temporal component |
 |---|---|---|
-| GCN (08) | GCNConv — pesos fixos pela adjacência normalizada | — (INPUT_LEN como features diretas) |
-| T-GCN (09) | GCNConv — pesos fixos | GRU |
-| T-GAT (10) | GATConv — **atenção aprendida** por aresta | GRU |
+| GCN (08) | GCNConv — fixed weights from normalized adjacency | — (INPUT_LEN as direct features) |
+| T-GCN (09) | GCNConv — fixed weights | GRU |
+| T-GAT (10) | GATConv — **learned attention** per edge | GRU |
 
-O T-GAT também gera `gat_attention.png` (implementação customizada): heatmap N×N mostrando quais pares de paradas o modelo aprendeu a priorizar.
+T-GAT also generates `gat_attention.png` (custom implementation): an N×N heatmap showing which stop pairs the model learned to prioritize.
 
 ---
 
-## Hiperparâmetros comuns (deep learning)
+## Common hyperparameters (deep learning)
 
-| Parâmetro | Valor padrão |
+| Parameter | Default value |
 |---|---|
-| `INPUT_LEN` | 72 (3 dias horários) |
-| `HORIZON` | 24 (previsão 1 dia à frente) |
+| `INPUT_LEN` | 72 (3 hourly days) |
+| `HORIZON` | 24 (1-day-ahead forecast) |
 | `FREQ` | `"1h"` |
 | `EPOCHS` | 50–60 |
-| `DEVICE` | CUDA se disponível, senão CPU |
+| `DEVICE` | CUDA if available, otherwise CPU |
 | `SEED` | 42 |
 
-Métricas reportadas: **MAE**, **RMSE**, **MAPE** sobre valores na escala original (passageiros/hora).
+Reported metrics: **MAE**, **RMSE**, **MAPE** on original-scale values (passengers/hour).
 
 ---
 
-## Outputs gerados
+## Generated outputs
 
 ```
 outputs/
-  viz_timeseries/     perfis diários, heatmap, sazonalidade, média móvel
-  viz_graphs/         grafo top-20, centralidade, mapa interativo (.html)
-  sarima/             ACF/PACF, forecast com intervalo de confiança
-  lstm/               curvas de treino, forecast, lstm_best.pt
-  gru/                curvas de treino, forecast, gru_best.pt
+  viz_timeseries/     daily profiles, heatmap, seasonality, moving average
+  viz_graphs/         top-20 graph, centrality, interactive map (.html)
+  sarima/             ACF/PACF, forecast with confidence interval
+  lstm/               training curves, forecast, lstm_best.pt
+  gru/                training curves, forecast, gru_best.pt
   transformer/        forecast, transformer_best.pt
-  chronos/            forecast zero-shot
-  gcn/                forecast, MAE por nó, gcn_best.pt
-  gnn/                forecast, MAE por nó, tgcn_best.pt
-  gat/                forecast, MAE por nó, heatmap de atenção, gat_best.pt
+  chronos/            zero-shot forecast
+  gcn/                forecast, MAE per node, gcn_best.pt
+  gnn/                forecast, MAE per node, tgcn_best.pt
+  gat/                forecast, MAE per node, attention heatmap, gat_best.pt
 ```
