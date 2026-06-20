@@ -42,13 +42,16 @@ except ImportError:
     )
     PYG_AVAILABLE = False
 
-from utils import load_timeseries, load_od, build_graph_from_od
+import pickle
+
+from utils import build_graph_from_od
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = Path("outputs/gat")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_FILE  = Path("data/sunt.data")
 
 FREQ       = "1h"
 TOP_N      = 30           # nodes in the graph
@@ -71,11 +74,13 @@ np.random.seed(SEED)
 # ---------------------------------------------------------------------------
 # Data — same graph + sequence pipeline as 08/09
 # ---------------------------------------------------------------------------
-print("Loading data ...")
-ts_all = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N)
+print("Loading cached data ...")
+with open(DATA_FILE, "rb") as _f:
+    _cache = pickle.load(_f)
+ts_all = _cache["ts"]
+od     = _cache["od"]
 N      = ts_all.shape[1]
 
-od     = load_od()
 G_full = build_graph_from_od(od)
 
 def _norm_id(s):

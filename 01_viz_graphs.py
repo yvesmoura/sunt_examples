@@ -11,6 +11,7 @@ Optional: cartopy (for basemap background)
 """
 
 from pathlib import Path
+import pickle
 import warnings
 
 import matplotlib.pyplot as plt
@@ -28,13 +29,14 @@ except ImportError:
     FOLIUM_AVAILABLE = False
 
 from suntdataset import SUNTVisualizer
-from utils import load_timeseries, load_od, build_graph_from_od
+from utils import build_graph_from_od
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = Path("outputs/viz_graphs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_FILE  = Path("data/sunt.data")
 
 TOP_N = 20          # number of top stops to display
 FREQ  = "1h"        # aggregation frequency for occupancy computation
@@ -42,8 +44,11 @@ FREQ  = "1h"        # aggregation frequency for occupancy computation
 # ---------------------------------------------------------------------------
 # Load data & compute mean occupancy per stop
 # ---------------------------------------------------------------------------
-print("Loading data ...")
-ts = load_timeseries(freq=FREQ, top_n=200)  # wider pool, aggregated on the fly
+print("Loading cached data ...")
+with open(DATA_FILE, "rb") as _f:
+    _cache = pickle.load(_f)
+    ts = _cache["ts"]
+    od = _cache["od"]
 
 mean_occ = ts.mean().sort_values(ascending=False)
 top_stops = mean_occ.head(TOP_N).index.tolist()
@@ -55,7 +60,6 @@ for s, v in mean_occ.head(TOP_N).items():
 # Build full graph and extract subgraph of top stops
 # ---------------------------------------------------------------------------
 print("\nBuilding graph from OD data ...")
-od = load_od()
 
 # SUNTVisualizer.build_od_graph() uses the original column name "n-boardings"
 # build_graph_from_od() in data_loader handles the rename transparently

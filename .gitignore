@@ -5,3 +5,4 @@ outputs/
 *.pt
 *.egg-info/
 .env
+data/

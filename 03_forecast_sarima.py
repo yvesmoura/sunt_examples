@@ -18,15 +18,16 @@ warnings.filterwarnings("ignore")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+import pickle
 
-from utils import load_timeseries
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = Path("outputs/sarima")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_FILE  = Path("data/sunt.data")
 
 # Hourly data with daily seasonality M=24. Weekly M=168 is intractable for SARIMA.
 FREQ         = "1h"       # hourly boardings per stop
@@ -39,8 +40,9 @@ PERIODS      = 60         # calendar days to load (2024-04-01 → 2024-05-30)
 # ---------------------------------------------------------------------------
 # Load data
 # ---------------------------------------------------------------------------
-print("Loading data ...")
-ts_all = load_timeseries(start_date=START_DATE, n_days=PERIODS, freq=FREQ, top_n=20)
+print("Loading cached data ...")
+with open(DATA_FILE, "rb") as _f:
+    ts_all = pickle.load(_f)["ts"].iloc[:, :20]
 
 if STOP_ID is None:
     STOP_ID = ts_all.sum().idxmax()

@@ -20,13 +20,16 @@ import torch
 from chronos import ChronosPipeline
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-from utils import load_timeseries, prepare_sequences
+import pickle
+
+from utils import prepare_sequences
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = Path("outputs/chronos")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_FILE  = Path("data/sunt.data")
 
 FREQ        = "1h"
 TOP_N       = 20
@@ -44,8 +47,9 @@ torch.manual_seed(SEED)
 # ---------------------------------------------------------------------------
 # Data
 # ---------------------------------------------------------------------------
-print("Loading data ...")
-ts = load_timeseries(start_date="2024-04-01", n_days=60, freq=FREQ, top_n=TOP_N)
+print("Loading cached data ...")
+with open(DATA_FILE, "rb") as _f:
+    ts = pickle.load(_f)["ts"].iloc[:, :TOP_N]
 print(f"  Time series shape: {ts.shape}  (steps × stops)")
 
 splits = prepare_sequences(ts, input_len=INPUT_LEN, horizon=HORIZON)

@@ -9,19 +9,19 @@ Produces four figures:
 """
 
 from pathlib import Path
+import pickle
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import seaborn as sns
 import pandas as pd
 import numpy as np
 
-from utils import load_timeseries
-
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 OUTPUT_DIR = Path("outputs/viz_timeseries")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+DATA_FILE  = Path("data/sunt.data")
 
 FREQ = "1h"          # temporal resolution for the plots
 TOP_N_STOPS = 5      # how many stops to highlight
@@ -32,8 +32,9 @@ sns.set_theme(style="whitegrid", palette="tab10")
 # ---------------------------------------------------------------------------
 # Load & aggregate
 # ---------------------------------------------------------------------------
-print("Loading boarding data ...")
-ts = load_timeseries(freq=FREQ, top_n=50)
+print("Loading cached data ...")
+with open(DATA_FILE, "rb") as _f:
+    ts = pickle.load(_f)["ts"]
 top_stops = ts.sum().nlargest(TOP_N_STOPS).index.tolist()
 SINGLE_STOP = SINGLE_STOP or top_stops[0]
 
